@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로그함수의 최대최소</title>
+
+  <!-- MathJax 라이브러리 로드 (LaTeX 수식 렌더링) -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+      color: #333;
+    }
+    h1, h2, h3 {
+      text-align: center;
+    }
+    .centered {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 20px;
+    }
+    .difficulty-btns button {
+      margin: 5px;
+      padding: 10px 15px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #quiz-container {
+      max-width: 800px;
+      margin: 20px auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    #question {
+      margin-bottom: 15px;
+      font-weight: bold;
+    }
+    .choice {
+      margin: 5px 0;
+    }
+    .choice input {
+      margin-right: 5px;
+    }
+    #submitBtn, #nextBtn, #startBtn, #sendScoreBtn {
+      margin: 10px;
+      padding: 10px 15px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #energy-bar {
+      width: 100%;
+      height: 20px;
+      background: #ccc;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      position: relative;
+      overflow: hidden;
+    }
+    #energy-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, #f66, #f00);
+      width: 100%;
+      transition: width 0.3s linear;
+    }
+    #info {
+      margin: 5px 0;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    #response {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      background: #eef;
+      padding: 10px;
+    }
+    /* 중앙 정렬용 */
+    #nameInput {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 40px;
+    }
+    #nameInput input {
+      padding: 8px;
+      font-size: 14px;
+      margin: 5px;
+      width: 200px;
+      text-align: center;
+    }
+    #startScreen {
+      text-align: center;
+      margin-top: 40px;
+    }
+    #gameScreen {
+      display: none;
+    }
+    #quizEndScreen {
+      display: none;
+      text-align: center;
+      margin: 20px auto;
+    }
+  </style>
+
+</head>
+<body>
+
+  <h1>로그함수의 최대최소</h1>
+
+  <!-- 시작 화면: 이름 입력 + 난이도 선택 -->
+  <div id="startScreen">
+    <div id="nameInput">
+      <label for="playerName">이름을 입력하세요</label>
+      <input type="text" id="playerName" placeholder="이름">
+    </div>
+    <div class="centered difficulty-btns">
+      <button onclick="startGame('최상')">난이도: 최상</button>
+      <button onclick="startGame('상')">난이도: 상</button>
+      <button onclick="startGame('중')">난이도: 중</button>
+      <button onclick="startGame('하')">난이도: 하</button>
+    </div>
+  </div>
+
+  <!-- 게임 화면: 문제 + 선택지 -->
+  <div id="gameScreen">
+    <div id="info">
+      <span id="difficultyInfo"></span> |
+      남은 기회: <span id="lives">3</span> |
+      점수: <span id="score">0</span> |
+      총 경과시간: <span id="elapsedTime">0</span>초
+    </div>
+    <div id="energy-bar">
+      <div id="energy-bar-inner"></div>
+    </div>
+    <div id="quiz-container">
+      <div id="question"></div>
+      <div id="choices"></div>
+      <button id="submitBtn" onclick="submitAnswer()">제출</button>
+      <button id="nextBtn" onclick="nextQuestion()" style="display:none;">다음 문제</button>
+    </div>
+  </div>
+
+  <!-- 게임 종료 화면 -->
+  <div id="quizEndScreen">
+    <h2 id="endMessage"></h2>
+    <p>최종 점수: <span id="finalScore"></span></p>
+    <button id="sendScoreBtn" onclick="sendScoreData()">점수 전송</button>
+    <div id="response"></div>
+  </div>
+
+  <script>
+  /**
+   * 게임 이름 : "로그함수의 최대최소"
+   * - 제한 시간 모드(에너지바) 적용 (난이도에 따라 시간 제한이 다름)
+   * - 문제 순서는 랜덤, 중복 출제 없음.
+   * - 3번 틀리면 게임 종료.
+   * - MathJax를 사용하여 LaTeX 수식 렌더링.
+   */
+
+  // =============== MathJax 렌더링 함수 ===============
+  function renderMath() {
+    MathJax.typesetPromise();
+  }
+
+  // =============== 문제 데이터 ===============
+  // [문제집합1] (총 11문항)
+  const quizPart1 = [
+    {
+      question: "\\(1\\le x\\le 64\\)에서 \\(y = \\log_{2} x\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 6, 최솟값: 1",
+        "최대값: 5, 최솟값: -1",
+        "최대값: 4, 최솟값: 0",
+        "최대값: 6, 최솟값: 0"
+      ],
+      correct: 3
+    },
+    {
+      question: "\\(\\dfrac{1}{9}\\le x\\le 27\\)에서 \\(y = \\log_{\\tfrac{1}{3}} x\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 2, 최솟값: -3",
+        "최대값: 2, 최솟값: -2",
+        "최대값: 3, 최솟값: -3",
+        "최대값: 1, 최솟값: -3"
+      ],
+      correct: 0
+    },
+    {
+      question: "\\(\\dfrac{2}{3}\\le x\\le \\dfrac{80}{3}\\)에서 \\(y = \\log_{3}(3x+1)\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 4, 최솟값: 0",
+        "최대값: 4, 최솟값: 1",
+        "최대값: 3, 최솟값: 1",
+        "최대값: 5, 최솟값: 1"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(2\\le x\\le 64\\)에서 \\(y = \\log_{2} x\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 6, 최솟값: 0",
+        "최대값: 5, 최솟값: 2",
+        "최대값: 6, 최솟값: 1",
+        "최대값: 4, 최솟값: 1"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(\\dfrac{1}{2}\\le x\\le 16\\)에서 \\(y = \\log_{2} x\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 4, 최솟값: -1",
+        "최대값: 4, 최솟값: 0",
+        "최대값: 3, 최솟값: -1",
+        "최대값: 5, 최솟값: -1"
+      ],
+      correct: 0
+    },
+    {
+      question: "\\(7\\le x\\le 127\\)에서 \\(y = -\\log_{5}(x-2) + 3\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 2, 최솟값: 0",
+        "최대값: 3, 최솟값: 1",
+        "최대값: 2, 최솟값: 1",
+        "최대값: 3, 최솟값: 0"
+      ],
+      correct: 0
+    },
+    {
+      question: "\\(-\\dfrac{1}{2}\\le x\\le 7\\)에서 \\(y = \\log_{\\tfrac{1}{2}} (x+1)\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 0, 최솟값: -3",
+        "최대값: 1, 최솟값: -2",
+        "최대값: 1, 최솟값: -3",
+        "최대값: 2, 최솟값: -3"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(\\dfrac{5}{8}\\le x\\le 1\\)에서 \\(y = \\log_{\\tfrac{1}{2}}(2x-1) + 1\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 3, 최솟값: 1",
+        "최대값: 2, 최솟값: 1",
+        "최대값: 3, 최솟값: 0",
+        "최대값: 4, 최솟값: 1"
+      ],
+      correct: 0
+    },
+    {
+      question: "\\(2\\le x\\le 26\\)에서 \\(y = \\log_{3}(x+1) - 1\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 3, 최솟값: 0",
+        "최대값: 2, 최솟값: 0",
+        "최대값: 2, 최솟값: 1",
+        "최대값: 1, 최솟값: 0"
+      ],
+      correct: 1
+    },
+    {
+      // 보기의 로그 표기를 명확히 하기 위해 밑을 추가함.
+      question: "\\(\\dfrac{2}{3}\\le x\\le 2\\)에서 \\(y = \\log_{\\tfrac{1}{3}}(3x+1)\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: -2, 최솟값: \\(\\log_{\\tfrac{1}{3}}7\\)",
+        "최대값: -1, 최솟값: \\(\\log_{\\tfrac{1}{3}}6\\)",
+        "최대값: -1, 최솟값: \\(\\log_{\\tfrac{1}{3}}7\\)",
+        "최대값: 0, 최솟값: \\(\\log_{\\tfrac{1}{3}}7\\)"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(5\\le x\\le 33\\)에서 \\(y = \\log_{2}(x-1)\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 5, 최솟값: 2",
+        "최대값: 5, 최솟값: 3",
+        "최대값: 4, 최솟값: 2",
+        "최대값: 5, 최솟값: 1"
+      ],
+      correct: 0
+    }
+  ];
+
+  // [문제집합2] (원래 3문항 중 계산 복잡한 문제 삭제 → 2문항)
+  const quizPart2 = [
+    {
+      question: "\\(4\\le x\\le 10\\)인 함수 \\(y = \\log_{\\tfrac{1}{3}}(x-1) + a\\)의 최댓값이 4일 때, 상수 \\(a\\)의 값을 구하시오.",
+      choices: [
+        "\\(a = 3\\)",
+        "\\(a = 4\\)",
+        "\\(a = 5\\)",
+        "\\(a = 6\\)"
+      ],
+      correct: 2
+    },
+    {
+      question: "정의역이 \\(-1\\le x\\le 2\\)인 두 함수 \\(f(x) = 4^{x-1},\\; g(x) = -\\log_{2}(x+2)\\)에 대하여 \\(f(x)\\)의 최댓값을 \\(M\\), \\(g(x)\\)의 최솟값을 \\(m\\)이라 할 때, \\(M + m\\)을 구하시오.",
+      choices: [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      correct: 1
+    }
+  ];
+
+  // [문제집합3] (5문항)
+  const quizPart3 = [
+    {
+      question: "\\(y = \\log_{\\tfrac{1}{2}}(x^{2} + 6x + 17)\\)의 최대값을 구하시오.",
+      choices: [
+        "-1",
+        "-2",
+        "-3",
+        "-4"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(y = \\log_{3}(x-1) - \\log_{\\tfrac{1}{3}}(7 - x)\\)의 최대값을 구하시오.",
+      choices: [
+        "1",
+        "2",
+        "3",
+        "-1"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(y = \\log_{3}(x-1) + \\log_{3}(7 - x)\\)의 최대값을 구하시오.",
+      choices: [
+        "-1",
+        "1",
+        "2",
+        "3"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(y = \\log_{\\tfrac{1}{3}}(x-1) + \\log_{\\tfrac{1}{3}}(7 - x)\\)의 최솟값을 구하시오.",
+      choices: [
+        "-1",
+        "-2",
+        "-3",
+        "-4"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(y = \\log_{2}(x^{2} + 4x + 12)\\)의 최솟값을 구하시오.",
+      choices: [
+        "2",
+        "3",
+        "4",
+        "-1"
+      ],
+      correct: 1
+    }
+  ];
+
+  // [문제집합4] (원래 7문항 중 마지막 문제 삭제 → 6문항)
+  const quizPart4 = [
+    {
+      question: "구간 \\([-1,2]\\)에서 함수 \\(y = \\log_{\\tfrac{1}{2}}(x^{2} - 2x + 3)\\)의 최대값을 \\(M\\), 최솟값을 \\(m\\)이라 할 때, \\(M - m\\)의 값을 구하여라.",
+      choices: [
+        "\\(\\log_{\\tfrac{1}{2}}\\bigl(\\tfrac{1}{2}\\bigr)\\)",
+        "\\(\\log_{\\tfrac{1}{2}}\\bigl(\\tfrac{1}{3}\\bigr)\\)",
+        "\\(\\log_{\\tfrac{1}{2}}\\bigl(\\tfrac{1}{4}\\bigr)\\)",
+        "\\(\\log_{\\tfrac{1}{2}}\\bigl(\\tfrac{1}{6}\\bigr)\\)"
+      ],
+      correct: 1
+    },
+    {
+      question: "함수 \\(y = \\log_{4}(x+5) + \\log_{4}(1-x)\\)의 최대값을 \\(\\alpha\\)라 할 때, \\(2^{\\alpha}\\)의 값을 구하여라.",
+      choices: [
+        "2",
+        "3",
+        "4",
+        "6"
+      ],
+      correct: 1
+    },
+    {
+      question: "구간 \\([0,1]\\)에서 함수 \\(y = \\log_{a}(x^{2} - 2x + 10)\\)의 최대값이 \\(-2\\)일 때, \\(6a\\)의 값을 구하여라.",
+      choices: [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      correct: 1
+    },
+    {
+      question: "함수 \\(f(x) = \\log_{a}(x^{2} - 4x + 6)\\)의 최대값이 \\(-2\\)일 때, 양수 \\(a\\)의 값을 구하여라.",
+      choices: [
+        "\\(\\tfrac{1}{2}\\)",
+        "\\(\\sqrt{2}\\)",
+        "\\(\\tfrac{\\sqrt{2}}{2}\\)",
+        "\\(\\tfrac{1}{\\sqrt{2}}\\)"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(a>1\\)일 때, 닫힌 구간 \\([1,4]\\)에서 함수 \\(f(x)=\\log_{a}(-x^{2} + 6x)\\)의 최대값과 최솟값의 차가 1이라고 한다. 이때 \\(a\\)의 값을 구하여라.",
+      choices: [
+        "\\(\\tfrac{5}{9}\\)",
+        "\\(\\tfrac{9}{5}\\)",
+        "\\(\\tfrac{8}{3}\\)",
+        "\\(\\tfrac{3}{2}\\)"
+      ],
+      correct: 1
+    },
+    {
+      question: "구간 \\([-4,2]\\)일 때 함수 \\(y = \\log_{a}\\bigl(\\tfrac{1}{2}x^{2} - 2x + 14\\bigr)\\)의 최대값이 \\(-2\\)일 때, 최솟값을 구하여라.",
+      choices: [
+        "-2",
+        "-\\tfrac{8}{3}",
+        "-1",
+        "-3"
+      ],
+      correct: 1
+    }
+  ];
+
+  // [문제집합5] (5문항)
+  const quizPart5 = [
+    {
+      question: "\\(3\\le x\\le 9\\)에서 \\(y = 6(\\log_{3} x)^{2} - 3\\log_{\\sqrt{3}} x^{2}\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 0,   최솟값: -2",
+        "최대값: 2,   최솟값: -4",
+        "최대값: 0,   최솟값: -6",
+        "최대값: 1,   최솟값: -6"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(1\\le x\\le 3\\)에서 \\(y = 2(\\log_{\\tfrac{1}{3}} x)^{2} + \\log_{\\tfrac{1}{3}} x^{2}\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 1,  최솟값: -\\(\\tfrac{1}{2}\\)",
+        "최대값: 0,  최솟값: -1",
+        "최대값: 0,  최솟값: -\\(\\tfrac{1}{2}\\)",
+        "최대값: 1,  최솟값: -1"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(\\tfrac{1}{4}\\le x\\le 2\\)에서 \\(y = - (\\log_{\\tfrac{1}{2}} x)^{2} + \\log_{\\tfrac{1}{2}} x^{2} + 3\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 3, 최솟값: 0",
+        "최대값: 4, 최솟값: 0",
+        "최대값: 4, 최솟값: 1",
+        "최대값: 3, 최솟값: 1"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(1\\le x\\le 8\\)에서 \\(y = (\\log_{2} x)^{2} - 2\\log_{2} x + 4\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 7, 최솟값: 3",
+        "최대값: 5, 최솟값: 2",
+        "최대값: 8, 최솟값: 3",
+        "최대값: 7, 최솟값: 4"
+      ],
+      correct: 0
+    },
+    {
+      question: "\\(\\tfrac{1}{2}\\le x\\le 2\\)에서 \\(y = (\\log_{2} x)^{2} + \\log_{2}(2x)\\)의 최대값과 최솟값을 구하시오.",
+      choices: [
+        "최대값: 4, 최솟값: 3",
+        "최대값: 3, 최솟값: \\(\\tfrac{3}{4}\\)",
+        "최대값: 2, 최솟값: 1",
+        "최대값: 3, 최솟값: 1"
+      ],
+      correct: 1
+    }
+  ];
+
+  // [문제집합6] (원래 8문항 중 3문항 삭제 → 5문항; 문제5의 표현을 수정)
+  const quizPart6 = [
+    {
+      question: "\\(x>0\\)일 때, \\( y = \\log_{2}(x+2) - \\tfrac{1}{2} \\log_{2} x \\)의 최솟값을 구하시오.",
+      choices: [
+        "1",
+        "\\(\\tfrac{3}{2}\\)",
+        "\\(\\tfrac{1}{2}\\)",
+        "2"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\( y = 4(\\log_{x}2)^{2} - 4\\log_{x}2 - 2 \\)에서의 최솟값을 구하시오.",
+      choices: [
+        "-1",
+        "-2",
+        "-3",
+        "-4"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(x>0,\\; y>0\\)일 때, \\( \\log_{6}(x+\\tfrac{5}{y}) + \\log_{6}(\\tfrac{1}{x} + 5y) \\)의 최솟값을 구하시오.",
+      choices: [
+        "1",
+        "2",
+        "-1",
+        "-2"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(x>0,\\; y>0\\)일 때, \\( \\log_{3}(x+\\tfrac{2}{y}) + \\log_{3}(2y + \\tfrac{1}{x}) \\)의 최솟값을 구하시오.",
+      choices: [
+        "1",
+        "2",
+        "-1",
+        "\\(\\tfrac{3}{2}\\)"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(x>0,\\; y>0\\)일 때, \\( \\log_{2}(x+\\tfrac{1}{y}) + \\log_{2}(\\tfrac{1}{x} + y) \\)의 최솟값을 구하시오.",
+      choices: [
+        "1",
+        "2",
+        "-1",
+        "\\(\\tfrac{3}{2}\\)"
+      ],
+      correct: 1
+    }
+  ];
+
+  // [문제집합7] (5문항)
+  const quizPart7 = [
+    {
+      question: "\\(1\\le x\\le 27\\)에서 \\(y = (\\log_{3}\\tfrac{x}{3})(\\log_{3}\\tfrac{x}{27})\\)의 최대값을 \\(M\\), 최솟값을 \\(m\\)이라 할 때, \\(M - m\\)의 값을 구하여라.",
+      choices: [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(1\\le x\\le 27\\)에서 \\( f(x) = (\\log_{3} 3x)^{2} + \\log_{\\tfrac{1}{3}} x^{4} + 7 \\)의 최대값을 \\(M\\), 최솟값을 \\(m\\)이라 할 때, \\(M + m\\)을 구하여라.",
+      choices: [
+        "16",
+        "17",
+        "18",
+        "19"
+      ],
+      correct: 2
+    },
+    {
+      question: "\\(x>1\\)일 때, \\(\\log_{3} x + \\log_{x} 81\\)의 최솟값을 구하시오.",
+      choices: [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      correct: 2
+    },
+    {
+      question: "양수 \\(x,y\\)에 대하여 \\(x + 3y = 18\\)일 때, \\(\\log_{3} x + \\log_{3} y\\)의 최댓값을 구하시오.",
+      choices: [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      correct: 1
+    },
+    {
+      question: "\\(x>0,\\; y>0\\)에 대하여 \\(2x + y = 16\\)일 때, \\(\\log_{2} x + \\log_{2} y\\)의 최댓값을 구하시오.",
+      choices: [
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      correct: 2
+    }
+  ];
+
+  // 문제 세트 합치기
+  let quizData = [].concat(
+    quizPart1,
+    quizPart2,
+    quizPart3,
+    quizPart4,
+    quizPart5,
+    quizPart6,
+    quizPart7
+  );
+
+  // =============== 전역 상태 ===============
+  let currentQuestionIndex = 0;
+  let usedIndices = []; // 이미 출제한 문제 인덱스
+  let score = 0;
+  let lives = 3;
+  let totalTime = 0; // 총 경과시간(초)
+  let timer = null;
+  let energyWidth = 100; // 에너지바 %
+
+  let difficulty = "";
+  let timeLimit = 0;
+  let questionScore = 0;
+  let unlimitedTime = false; // 하 난이도 => 시간 무제한
+
+  // =============== Shuffle ===============
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  // 문제 배열 섞기 (한 게임에서 출제 순서를 랜덤화)
+  shuffleArray(quizData);
+
+  // =============== 난이도 선택 ===============
+  function startGame(selectedDifficulty) {
+    const name = document.getElementById('playerName').value.trim();
+    if (!name) {
+      alert("이름을 입력하세요!");
+      return;
+    }
+
+    difficulty = selectedDifficulty;
+    document.getElementById("startScreen").style.display = "none";
+    document.getElementById("gameScreen").style.display = "block";
+
+    switch (difficulty) {
+      case "최상":
+        timeLimit = 20;
+        questionScore = 20;
+        break;
+      case "상":
+        timeLimit = 30;
+        questionScore = 15;
+        break;
+      case "중":
+        timeLimit = 40;
+        questionScore = 13;
+        break;
+      case "하":
+        unlimitedTime = true;
+        questionScore = 10;
+        break;
+    }
+
+    document.getElementById("difficultyInfo").innerText = "난이도: " + difficulty;
+    nextQuestion();
+    startTotalTimer();
+  }
+
+  // =============== 다음 문제 ===============
+  function nextQuestion() {
+    document.getElementById("submitBtn").style.display = "inline-block";
+    document.getElementById("nextBtn").style.display = "none";
+
+    if (usedIndices.length >= quizData.length) {
+      endGame("모든 문제를 다 풀었습니다!");
+      return;
+    }
+
+    // 아직 출제하지 않은 인덱스 선택
+    let found = false;
+    while (!found) {
+      currentQuestionIndex = Math.floor(Math.random() * quizData.length);
+      if (!usedIndices.includes(currentQuestionIndex)) {
+        usedIndices.push(currentQuestionIndex);
+        found = true;
+      }
+    }
+
+    showQuestion(quizData[currentQuestionIndex]);
+    resetEnergyBar();
+  }
+
+  // =============== 문제 표시 ===============
+  function showQuestion(q) {
+    document.getElementById("question").innerHTML = q.question;
+    const choicesDiv = document.getElementById("choices");
+    choicesDiv.innerHTML = "";
+
+    let order = [0, 1, 2, 3];
+    shuffleArray(order);
+
+    for (let i = 0; i < 4; i++) {
+      const idx = order[i];
+      const choiceEl = document.createElement("div");
+      choiceEl.className = "choice";
+      choiceEl.innerHTML = `
+        <label>
+          <input type="radio" name="choice" value="${idx}">
+          <span>${q.choices[idx]}</span>
+        </label>
+      `;
+      choicesDiv.appendChild(choiceEl);
+    }
+
+    // LaTeX 렌더링
+    renderMath();
+  }
+
+  // =============== 에너지바 초기화 ===============
+  function resetEnergyBar() {
+    energyWidth = 100;
+    document.getElementById("energy-bar-inner").style.width = energyWidth + "%";
+
+    if (timer) clearInterval(timer);
+
+    if (!unlimitedTime) {
+      // 제한 시간 모드
+      timer = setInterval(() => {
+        energyWidth -= (100 / timeLimit) * 0.3; // 0.3초마다 감소
+        if (energyWidth < 0) energyWidth = 0;
+        document.getElementById("energy-bar-inner").style.width = energyWidth + "%";
+
+        if (energyWidth <= 0) {
+          clearInterval(timer);
+          lives--;
+          document.getElementById("lives").innerText = lives;
+          alert("시간 초과! 기회가 1 줄었습니다.");
+          if (lives <= 0) {
+            endGame("시간 초과로 기회를 모두 소진했습니다.");
+          } else {
+            document.getElementById("submitBtn").style.display = "none";
+            document.getElementById("nextBtn").style.display = "inline-block";
+          }
+        }
+      }, 300);
+    }
+  }
+
+  // =============== 전체 경과시간 측정 ===============
+  let totalTimerInterval = null;
+  function startTotalTimer() {
+    totalTimerInterval = setInterval(() => {
+      totalTime++;
+      document.getElementById("elapsedTime").innerText = totalTime;
+    }, 1000);
+  }
+
+  // =============== 제출 ===============
+  function submitAnswer() {
+    if (timer) clearInterval(timer);
+
+    const q = quizData[currentQuestionIndex];
+    const radios = document.getElementsByName("choice");
+    let selected = -1;
+    for (let i = 0; i < radios.length; i++) {
+      if (radios[i].checked) {
+        selected = parseInt(radios[i].value, 10);
+        break;
+      }
+    }
+    if (selected < 0) {
+      alert("답을 고르세요!");
+      resetEnergyBar(); // 다시 타이머 돌림
+      return;
+    }
+
+    if (selected === q.correct) {
+      score += questionScore;
+      document.getElementById("score").innerText = score;
+      alert("정답! +" + questionScore + "점");
+    } else {
+      alert("오답입니다. 정답: " + q.choices[q.correct]);
+      lives--;
+      document.getElementById("lives").innerText = lives;
+      if (lives <= 0) {
+        endGame("기회를 모두 소진했습니다.");
+        return;
+      }
+    }
+
+    document.getElementById("submitBtn").style.display = "none";
+    document.getElementById("nextBtn").style.display = "inline-block";
+  }
+
+  // =============== 게임 종료 ===============
+  function endGame(msg) {
+    if (timer) clearInterval(timer);
+    if (totalTimerInterval) clearInterval(totalTimerInterval);
+
+    document.getElementById("gameScreen").style.display = "none";
+    document.getElementById("quizEndScreen").style.display = "block";
+
+    document.getElementById("endMessage").innerText = msg;
+    document.getElementById("finalScore").innerText = score;
+  }
+
+  // =============== 점수 전송 ===============
+  async function sendScoreData() {
+    const game = "로그함수의 최대최소";
+    const name = document.getElementById("playerName").value.trim();
+    const elapsedTime = totalTime;
+
+    const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+    const requestData = {
+      game,
+      name,
+      score: parseInt(score, 10),
+      elapsedTime: parseInt(elapsedTime, 10)
+    };
+
+    try {
+      const response = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData)
+      });
+      const responseData = await response.json();
+
+      if (response.ok) {
+        document.getElementById('response').innerText =
+          `성공: ${JSON.stringify(responseData, null, 2)}`;
+      } else {
+        document.getElementById('response').innerText =
+          `오류: ${JSON.stringify(responseData, null, 2)}`;
+      }
+    } catch (error) {
+      console.error('요청 실패:', error);
+      document.getElementById('response').innerText =
+        `네트워크 오류: ${error.message}`;
+    }
+  }
+  </script>
+
+</body>
+</html>
